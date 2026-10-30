@@ -54,7 +54,23 @@ def request(url, token=None, form=None):
                      403: 'Berechtigungen und regionale App-Registrierung im Tesla-Portal prüfen.',
                      402: 'Abrechnung im Tesla-Entwicklerportal prüfen.',
                      429: 'Anfragelimit erreicht. Später erneut versuchen.'}
-            raise AppError(f'Tesla HTTP {exc.code}. ' + hints.get(exc.code, 'Anfrage fehlgeschlagen.')) from None
+            if exc.code == 400 and url == TOKEN_URL:
+                import re
+
+                body = exc.read().decode("utf-8", errors="replace")
+                try:
+                    details = json.loads(body)
+                    error = details.get("error", "unknown")
+                    description = details.get("error_description", "")
+                    if not isinstance(error, str):
+                        error = "unknown"
+                    if not isinstance(description, str):
+                        description = ""
+                    message = re.sub(r"[^a-zA-Z0-9_. -]", "", f"{error}: {description}")[:200]
+                except ValueError:
+                    message = "Keine auswertbare OAuth-Fehlermeldung"
+
+                raise AppError(f"Tesla OAuth HTTP 400: {message}") from None
         except (URLError, TimeoutError):
             raise AppError('Tesla nicht erreichbar. Internetverbindung prüfen.') from None
 
